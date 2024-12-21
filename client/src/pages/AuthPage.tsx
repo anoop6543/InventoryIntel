@@ -12,14 +12,23 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const { login, register } = useUser();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+
     try {
       if (isLogin) {
-        await login({ username, password });
+        const result = await login({ username, password });
+        if (!result.ok) {
+          throw new Error(result.message);
+        }
       } else {
-        await register({ username, password });
+        const result = await register({ username, password });
+        if (!result.ok) {
+          throw new Error(result.message);
+        }
       }
     } catch (error: any) {
       toast({
@@ -27,6 +36,8 @@ export default function AuthPage() {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -48,6 +59,8 @@ export default function AuthPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              disabled={isLoading}
+              className="bg-white"
             />
             <Input
               type="password"
@@ -55,9 +68,11 @@ export default function AuthPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isLoading}
+              className="bg-white"
             />
-            <Button type="submit" className="w-full">
-              {isLogin ? "Sign In" : "Create Account"}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
 
@@ -65,6 +80,8 @@ export default function AuthPage() {
             <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-primary hover:underline"
+              disabled={isLoading}
+              type="button"
             >
               {isLogin
                 ? "Need an account? Sign up"
