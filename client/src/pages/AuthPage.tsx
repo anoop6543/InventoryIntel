@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Package } from "lucide-react";
+import { Package, Loader2 } from "lucide-react";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,6 +16,15 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username || !password) {
+      toast({
+        title: "Error",
+        description: "Username and password are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -24,11 +33,19 @@ export default function AuthPage() {
         if (!result.ok) {
           throw new Error(result.message);
         }
+        toast({
+          title: "Success",
+          description: "Logged in successfully",
+        });
       } else {
         const result = await register({ username, password });
         if (!result.ok) {
           throw new Error(result.message);
         }
+        toast({
+          title: "Success",
+          description: "Account created and logged in successfully",
+        });
       }
     } catch (error: any) {
       toast({
@@ -72,7 +89,14 @@ export default function AuthPage() {
               className="bg-white"
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+              {isLoading ? (
+                <span className="flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Please wait...
+                </span>
+              ) : (
+                isLogin ? "Sign In" : "Create Account"
+              )}
             </Button>
           </form>
 

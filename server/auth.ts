@@ -28,7 +28,6 @@ const crypto = {
   },
 };
 
-// extend express user object with our schema
 declare global {
   namespace Express {
     interface User extends SelectUser { }
@@ -43,7 +42,7 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {},
     store: new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
+      checkPeriod: 86400000,
     }),
   };
 
@@ -100,14 +99,12 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const result = insertUserSchema.safeParse(req.body);
-      if (!result.success) {
-        return res
-          .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
-      }
+      console.log("Register request body:", req.body);
 
-      const { username, password } = result.data;
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).send("Username and password are required");
+      }
 
       // Check if user already exists
       const [existingUser] = await db
@@ -129,7 +126,7 @@ export function setupAuth(app: Express) {
         .values({
           username,
           password: hashedPassword,
-          role: 'user' // default role
+          role: 'admin' // First user gets admin role
         })
         .returning();
 
@@ -144,19 +141,19 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
+      console.error("Registration error:", error);
       next(error);
     }
   });
 
   app.post("/api/login", (req, res, next) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res
-        .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+    console.log("Login request body:", req.body);
+
+    if (!req.body.username || !req.body.password) {
+      return res.status(400).send("Username and password are required");
     }
 
-    const cb = (err: any, user: Express.User, info: IVerifyOptions) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
       if (err) {
         return next(err);
       }
@@ -175,8 +172,7 @@ export function setupAuth(app: Express) {
           user: { id: user.id, username: user.username, role: user.role },
         });
       });
-    };
-    passport.authenticate("local", cb)(req, res, next);
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res) => {
@@ -184,7 +180,6 @@ export function setupAuth(app: Express) {
       if (err) {
         return res.status(500).send("Logout failed");
       }
-
       res.json({ message: "Logout successful" });
     });
   });
@@ -193,7 +188,6 @@ export function setupAuth(app: Express) {
     if (req.isAuthenticated()) {
       return res.json(req.user);
     }
-
     res.status(401).send("Not logged in");
   });
 }
