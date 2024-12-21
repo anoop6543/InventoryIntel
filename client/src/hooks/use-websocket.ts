@@ -5,7 +5,8 @@ export function useWebSocket(onMessage: (data: any) => void) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws.current = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const host = window.location.host || '0.0.0.0:5000';
+    ws.current = new WebSocket(`${protocol}//${host}/ws`);
 
     ws.current.onmessage = (event) => {
       try {
