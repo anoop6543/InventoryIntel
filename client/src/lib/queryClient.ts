@@ -9,11 +9,12 @@ export const queryClient = new QueryClient({
         });
 
         if (!res.ok) {
-          if (res.status >= 500) {
-            throw new Error(`${res.status}: ${res.statusText}`);
+          if (res.status === 401) {
+            return null;
           }
 
-          throw new Error(`${res.status}: ${await res.text()}`);
+          const errorText = await res.text();
+          throw new Error(errorText || res.statusText);
         }
 
         return res.json();
@@ -21,7 +22,11 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: (failureCount, error) => {
+        // Don't retry on 401 unauthorized
+        if (error.message.includes("401")) return false;
+        return failureCount < 3;
+      },
     },
     mutations: {
       retry: false,
