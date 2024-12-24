@@ -45,7 +45,6 @@ export default function Dashboard({ items }: DashboardProps) {
 
   useEffect(() => {
     if (lowStockItems > 0) {
-      alert(`There are ${lowStockItems} items below minimum quantity!`);
       notifySupplierOrCreateTicket(
         items.filter((item) => item.quantity <= item.minQuantity),
       );

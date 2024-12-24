@@ -26,6 +26,7 @@ export default function App() {
           <Route path="/" component={DashboardPage} />
           <Route path="/inventory" component={InventoryPage} />
           <Route path="/reports" component={ReportsPage} />
+          <Route path="/low-stock" component={LowStockPage} />
         </Switch>
       </main>
     </div>

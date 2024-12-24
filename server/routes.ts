@@ -19,20 +19,67 @@ export function registerRoutes(app: Express): Server {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "your-email@gmail.com",
-        pass: "your-email-password",
+        user: process.env.EMAIL_USER || "inventory@company.com",
+        pass: process.env.EMAIL_PASSWORD || "your-password",
       },
     });
 
     const itemsList = lowStockItems
-      .map((item) => `${item.name} (SKU: ${item.sku}) x${item.quantity}`)
-      .join("\n");
+      .map((item) => `
+        • ${item.name}
+          SKU: ${item.sku}
+          Current Stock: ${item.quantity}
+          Minimum Required: ${item.minQuantity}
+          Required Quantity: ${item.minQuantity * 2 - item.quantity}
+      `).join("\n");
 
     const mailOptions = {
-      from: "your-email@gmail.com",
-      to: "supplier-email@example.com",
-      subject: "Low Stock Alert",
-      text: `The following items are below minimum stock:\n${itemsList}`,
+      from: '"Inventory Management System" <inventory@company.com>',
+      to: 'supplier@vendor.com',
+      cc: 'procurement@company.com',
+      subject: 'Urgent: Stock Replenishment Required',
+      text: `Dear Supplier,
+
+We are writing to request an urgent replenishment of the following items that have fallen below our minimum stock requirements:
+
+${itemsList}
+
+Please provide a quote and estimated delivery timeline for the above items at your earliest convenience.
+
+Delivery Address:
+Company Name
+123 Business Street
+Industrial District
+City, State 12345
+
+Best regards,
+Inventory Management Team
+Company Name
+Phone: (555) 123-4567
+`,
+      html: `<p>Dear Supplier,</p>
+<p>We are writing to request an urgent replenishment of the following items that have fallen below our minimum stock requirements:</p>
+<div style="margin: 20px 0; padding: 10px; background: #f5f5f5;">
+${lowStockItems.map(item => `
+  <div style="margin-bottom: 15px;">
+    <strong>${item.name}</strong><br>
+    SKU: ${item.sku}<br>
+    Current Stock: ${item.quantity}<br>
+    Minimum Required: ${item.minQuantity}<br>
+    Required Quantity: ${item.minQuantity * 2 - item.quantity}
+  </div>
+`).join('')}
+</div>
+<p>Please provide a quote and estimated delivery timeline for the above items at your earliest convenience.</p>
+<p><strong>Delivery Address:</strong><br>
+Company Name<br>
+123 Business Street<br>
+Industrial District<br>
+City, State 12345</p>
+<p>Best regards,<br>
+Inventory Management Team<br>
+Company Name<br>
+Phone: (555) 123-4567</p>`
     };
 
     try {
