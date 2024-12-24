@@ -48,4 +48,13 @@ export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 export type Item = typeof items.$inferSelect;
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  category: text("category").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type Supplier = typeof suppliers.$inferSelect;

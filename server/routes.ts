@@ -16,6 +16,18 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/notify-supplier", async (req, res) => {
     const lowStockItems = req.body;
+    const isDebug = process.env.NODE_ENV !== 'production';
+    
+    if (isDebug) {
+      console.log('Debug mode: Email would be sent for items:', lowStockItems);
+      return res.status(200).send("Debug mode: Notification simulated successfully");
+    }
+
+    // Get relevant suppliers
+    const itemCategories = [...new Set(lowStockItems.map(item => item.category))];
+    const relevantSuppliers = await db.select().from(suppliers)
+      .where(sql`category = ANY(${itemCategories})`);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {

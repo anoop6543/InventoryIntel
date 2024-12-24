@@ -13,6 +13,15 @@ const categories = [
   "Office Supplies",
 ];
 
+// Add sample suppliers
+const sampleSuppliers = [
+  { name: "ABC Materials", email: "orders@abcmaterials.com", category: "Raw Materials" },
+  { name: "SafetyFirst Corp", email: "supply@safetyfirst.com", category: "Safety Equipment" },
+  { name: "Tech Parts Inc", email: "orders@techparts.com", category: "Electronics" },
+];
+
+await db.insert(suppliers).values(sampleSuppliers);
+
 const locations = [
   "Warehouse A",
   "Warehouse B", 
