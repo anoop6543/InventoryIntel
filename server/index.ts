@@ -40,76 +40,57 @@ app.use((req, res, next) => {
   next();
 });
 
-async function startServer(port: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      const server = registerRoutes(app);
-
-      // Global error handler
-      app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-        console.error('Server error:', err);
-        const status = err.status || err.statusCode || 500;
-        const message = err.message || "Internal Server Error";
-        res.status(status).json({ message });
-      });
-
-      if (app.get("env") === "development") {
-        setupVite(app, server)
-          .then(() => {
-            log("Vite middleware setup complete");
-            server.on('error', (e: any) => {
-              if (e.code === 'EADDRINUSE') {
-                log(`Port ${port} is in use, trying next port`);
-                server.close();
-                startServer(port + 1).then(resolve).catch(reject);
-              } else {
-                reject(e);
-              }
-            });
-
-            server.listen(port, "0.0.0.0", () => {
-              const address = server.address() as AddressInfo;
-              log(`Server started successfully on port ${address.port}`);
-              resolve();
-            });
-          })
-          .catch(reject);
-      } else {
-        serveStatic(app);
-        log("Static file serving setup complete");
-
-        server.on('error', (e: any) => {
-          if (e.code === 'EADDRINUSE') {
-            log(`Port ${port} is in use, trying next port`);
-            server.close();
-            startServer(port + 1).then(resolve).catch(reject);
-          } else {
-            reject(e);
-          }
-        });
-
-        server.listen(port, "0.0.0.0", () => {
-          const address = server.address() as AddressInfo;
-          log(`Server started successfully on port ${address.port}`);
-          resolve();
-        });
-      }
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
+let currentServer: ReturnType<typeof registerRoutes> | null = null;
 
 (async () => {
   try {
     // Test database connection
     await db.execute(sql`SELECT 1`);
-    log("Database connection established");
+    log("Database connection established successfully");
 
-    // Start server with initial port 5000
-    await startServer(5000);
+    currentServer = registerRoutes(app);
+
+    // Global error handler
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      console.error('Server error:', err);
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+    });
+
+    if (app.get("env") === "development") {
+      await setupVite(app, currentServer);
+      log("Vite middleware setup complete");
+    } else {
+      serveStatic(app);
+      log("Static file serving setup complete");
+    }
+
+    const PORT = 5000;
+    currentServer.listen(PORT, "0.0.0.0", () => {
+      const address = currentServer?.address() as AddressInfo;
+      log(`Server started successfully on port ${address.port}`);
+    });
+
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
 })();
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  log('SIGTERM received. Shutting down gracefully...');
+  currentServer?.close(() => {
+    log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  log('SIGINT received. Shutting down gracefully...');
+  currentServer?.close(() => {
+    log('Server closed');
+    process.exit(0);
+  });
+});

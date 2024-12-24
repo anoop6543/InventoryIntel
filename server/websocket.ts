@@ -3,10 +3,15 @@ import type { Server } from "http";
 import { db } from "@db";
 import { items } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { log } from "./vite";
 
 interface WSMessage {
   type: 'INVENTORY_UPDATE' | 'STOCK_ALERT' | 'CONNECTION_ACK' | 'ERROR';
   payload: any;
+}
+
+interface ClientInfo {
+  role: string;
 }
 
 export function setupWebSocket(server: Server) {
@@ -17,10 +22,10 @@ export function setupWebSocket(server: Server) {
   });
 
   // Store connected clients with their roles
-  const clients = new Map<WebSocket, { role: string }>();
+  const clients = new Map<WebSocket, ClientInfo>();
 
-  wss.on("connection", async (ws, request) => {
-    console.log("New WebSocket connection");
+  wss.on("connection", async (ws) => {
+    log("New WebSocket connection");
 
     // Send acknowledgment
     ws.send(JSON.stringify({
@@ -81,12 +86,9 @@ export function setupWebSocket(server: Server) {
               }
             });
             break;
-          case 'ERROR':
-            console.error('Error received from client:', message.payload);
-            break;
         }
       } catch (error) {
-        console.error('Error processing WebSocket message:', error);
+        log('Error processing WebSocket message: ' + error);
         ws.send(JSON.stringify({
           type: 'ERROR',
           payload: { message: 'Invalid message format' }
@@ -100,19 +102,25 @@ export function setupWebSocket(server: Server) {
 
     // Handle errors
     ws.on("error", (error) => {
-      console.error("WebSocket error:", error);
+      log("WebSocket error: " + error);
       clients.delete(ws);
     });
   });
 
   // Periodic ping to keep connections alive
-  setInterval(() => {
+  const pingInterval = setInterval(() => {
     wss.clients.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.ping();
       }
     });
   }, 30000);
+
+  // Cleanup when server closes
+  server.on('close', () => {
+    clearInterval(pingInterval);
+    wss.close();
+  });
 
   return wss;
 }
