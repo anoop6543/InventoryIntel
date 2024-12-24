@@ -20,6 +20,7 @@ export function registerRoutes(app: Express): Server {
     
     if (isDebug) {
       console.log('Debug mode: Email would be sent for items:', lowStockItems);
+      console.log('Debug mode: CC notification to:', 'anoop6543@gmail.com');
       return res.status(200).send("Debug mode: Notification simulated successfully");
     }
 
@@ -47,8 +48,8 @@ export function registerRoutes(app: Express): Server {
 
     const mailOptions = {
       from: '"Inventory Management System" <inventory@company.com>',
-      to: 'supplier@vendor.com',
-      cc: 'procurement@company.com',
+      to: relevantSuppliers.map(s => s.email).join(','),
+      cc: ['procurement@company.com', 'anoop6543@gmail.com'],
       subject: 'Urgent: Stock Replenishment Required',
       text: `Dear Supplier,
 
