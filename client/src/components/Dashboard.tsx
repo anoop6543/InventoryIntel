@@ -2,7 +2,15 @@ import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, AlertTriangle, TrendingUp, ArrowUpDown } from "lucide-react";
 import type { Item } from "@db/schema";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface DashboardProps {
   items: Item[];
@@ -12,25 +20,51 @@ export default function Dashboard({ items }: DashboardProps) {
   const totalItems = items.length;
   const totalStock = items.reduce((sum, item) => sum + item.quantity, 0);
   const lowStockItems = items.filter(
-    (item) => item.quantity <= item.minQuantity
+    (item) => item.quantity <= item.minQuantity,
   ).length;
   const totalValue = items.reduce(
     (sum, item) => sum + Number(item.unitPrice) * item.quantity,
-    0
+    0,
   );
 
-  const categoryData = items.reduce((acc, item) => {
-    if (!acc[item.category]) {
-      acc[item.category] = 0;
-    }
-    acc[item.category] += item.quantity;
-    return acc;
-  }, {} as Record<string, number>);
+  const categoryData = items.reduce(
+    (acc, item) => {
+      if (!acc[item.category]) {
+        acc[item.category] = 0;
+      }
+      acc[item.category] += item.quantity;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const chartData = Object.entries(categoryData).map(([name, value]) => ({
     name,
     value,
   }));
+
+  useEffect(() => {
+    if (lowStockItems > 0) {
+      alert(`There are ${lowStockItems} items below minimum quantity!`);
+      notifySupplierOrCreateTicket(
+        items.filter((item) => item.quantity <= item.minQuantity),
+      );
+    }
+  }, [lowStockItems]);
+
+  function notifySupplierOrCreateTicket(lowStockItems: Item[]) {
+    fetch("/api/notify-supplier", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(lowStockItems),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to notify supplier");
+      })
+      .catch((err) => console.error(err));
+  }
 
   return (
     <div className="space-y-6">
@@ -65,7 +99,9 @@ export default function Dashboard({ items }: DashboardProps) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Low Stock Alerts
+            </CardTitle>
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
@@ -83,7 +119,8 @@ export default function Dashboard({ items }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${totalValue.toLocaleString(undefined, {
+              $
+              {totalValue.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
