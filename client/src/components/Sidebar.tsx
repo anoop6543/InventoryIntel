@@ -7,6 +7,7 @@ import {
   BarChart,
   LogOut,
   Settings,
+  AlertTriangle
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -18,6 +19,7 @@ export default function Sidebar() {
     { href: "/inventory", icon: Package, label: "Inventory" },
     { href: "/reports", icon: BarChart, label: "Reports", adminOnly: true },
     { href: "/settings", icon: Settings, label: "Settings", adminOnly: true },
+    { href: "/low-stock", icon: AlertTriangle, label: "Low Stock" },
   ];
 
   return (
