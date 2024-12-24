@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, AlertTriangle, TrendingUp, ArrowUpDown } from "lucide-react";
 import type { Item } from "@db/schema";

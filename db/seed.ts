@@ -1,14 +1,32 @@
-
 import { db } from "./index";
 import { items } from "./schema";
 
-const categories = ["Raw Materials", "Tools", "Safety Equipment", "Machinery Parts", "Electronics", "Packaging", "Chemicals", "Office Supplies"];
-const locations = ["Warehouse A", "Warehouse B", "Production Floor", "Storage Room 1", "Storage Room 2", "Hazmat Storage", "Tool Shop"];
+const categories = [
+  "Raw Materials",
+  "Tools",
+  "Safety Equipment",
+  "Machinery Parts",
+  "Electronics",
+  "Packaging",
+  "Chemicals",
+  "Office Supplies",
+];
+const locations = [
+  "Warehouse A",
+  "Warehouse B",
+  "Production Floor",
+  "Storage Room 1",
+  "Storage Room 2",
+  "Hazmat Storage",
+  "Tool Shop",
+];
 
 function generateSKU(category: string, index: number) {
-  return `${category.substring(0, 3).toUpperCase()}-${String(index).padStart(4, '0')}`;
+  return `${category.substring(0, 3).toUpperCase()}-${String(index).padStart(4, "0")}`;
 }
 
+function generateItems() {
+  const itemsToInsert = [];
   function generateItems() {
     const itemsToInsert = [];
     let index = 0;
@@ -17,7 +35,10 @@ function generateSKU(category: string, index: number) {
     const rawMaterials = ["Steel Sheet", "Aluminum Rod", "Copper Wire"];
     for (let i = 0; i < 200; i++) {
       const name = `${rawMaterials[i % rawMaterials.length]} Type ${Math.floor(i / rawMaterials.length) + 1}`;
-      const quantity = i < 50 ? Math.floor(Math.random() * 10) + 1 : Math.floor(Math.random() * 1000) + 100; // Low stock for the first 50 items
+      const quantity =
+        i < 50
+          ? Math.floor(Math.random() * 10) + 1
+          : Math.floor(Math.random() * 1000) + 100; // Low stock for the first 50 items
       itemsToInsert.push({
         name,
         sku: generateSKU("RAW", index++),
@@ -26,7 +47,7 @@ function generateSKU(category: string, index: number) {
         minQuantity: 50,
         unitPrice: (Math.random() * 500 + 50).toFixed(2),
         location: locations[Math.floor(Math.random() * locations.length)],
-        description: `Industrial grade ${name.toLowerCase()} for manufacturing use`
+        description: `Industrial grade ${name.toLowerCase()} for manufacturing use`,
       });
     }
 
@@ -34,9 +55,44 @@ function generateSKU(category: string, index: number) {
 
     return itemsToInsert;
   }
+  let index = 0;
+
+  // Raw Materials
+  const rawMaterials = [
+    "Steel Sheet",
+    "Aluminum Rod",
+    "Copper Wire",
+    "Plastic Pellets",
+    "Wood Planks",
+    "Glass Sheets",
+    "Rubber Sheets",
+    "Carbon Fiber",
+  ];
+  for (let i = 0; i < 200; i++) {
+    const name = `${rawMaterials[i % rawMaterials.length]} Type ${Math.floor(i / rawMaterials.length) + 1}`;
+    itemsToInsert.push({
+      name,
+      sku: generateSKU("RAW", index++),
+      category: "Raw Materials",
+      quantity: Math.floor(Math.random() * 1000) + 100,
+      minQuantity: 50,
+      unitPrice: (Math.random() * 500 + 50).toFixed(2),
+      location: locations[Math.floor(Math.random() * locations.length)],
+      description: `Industrial grade ${name.toLowerCase()} for manufacturing use`,
+    });
+  }
 
   // Tools
-  const tools = ["Wrench Set", "Power Drill", "Measuring Tape", "Safety Gloves", "Welding Machine", "Screwdriver Set", "Hammer", "Saw"];
+  const tools = [
+    "Wrench Set",
+    "Power Drill",
+    "Measuring Tape",
+    "Safety Gloves",
+    "Welding Machine",
+    "Screwdriver Set",
+    "Hammer",
+    "Saw",
+  ];
   for (let i = 0; i < 150; i++) {
     const name = `${tools[i % tools.length]} Model ${Math.floor(i / tools.length) + 1}`;
     itemsToInsert.push({
@@ -47,7 +103,7 @@ function generateSKU(category: string, index: number) {
       minQuantity: 10,
       unitPrice: (Math.random() * 300 + 20).toFixed(2),
       location: locations[Math.floor(Math.random() * locations.length)],
-      description: `Professional grade ${name.toLowerCase()}`
+      description: `Professional grade ${name.toLowerCase()}`,
     });
   }
 
@@ -56,11 +112,31 @@ function generateSKU(category: string, index: number) {
   // For brevity, I'll include the function to generate the rest
 
   const restOfItems = [
-    "Safety Helmet", "Safety Boots", "Ear Protection", "Safety Goggles", "First Aid Kit",
-    "Machine Motor", "Bearings", "Gears", "Belts", "Pulleys",
-    "Circuit Board", "Sensors", "Switches", "Cables", "Controllers",
-    "Cardboard Box", "Plastic Container", "Bubble Wrap", "Tape", "Labels",
-    "Industrial Cleaner", "Lubricant", "Adhesive", "Paint", "Solvent"
+    "Safety Helmet",
+    "Safety Boots",
+    "Ear Protection",
+    "Safety Goggles",
+    "First Aid Kit",
+    "Machine Motor",
+    "Bearings",
+    "Gears",
+    "Belts",
+    "Pulleys",
+    "Circuit Board",
+    "Sensors",
+    "Switches",
+    "Cables",
+    "Controllers",
+    "Cardboard Box",
+    "Plastic Container",
+    "Bubble Wrap",
+    "Tape",
+    "Labels",
+    "Industrial Cleaner",
+    "Lubricant",
+    "Adhesive",
+    "Paint",
+    "Solvent",
   ];
 
   for (let i = 0; i < 650; i++) {
@@ -74,7 +150,7 @@ function generateSKU(category: string, index: number) {
       minQuantity: 25,
       unitPrice: (Math.random() * 200 + 10).toFixed(2),
       location: locations[Math.floor(Math.random() * locations.length)],
-      description: `Standard industrial ${name.toLowerCase()}`
+      description: `Standard industrial ${name.toLowerCase()}`,
     });
   }
 
@@ -83,13 +159,13 @@ function generateSKU(category: string, index: number) {
 
 async function seed() {
   try {
-    console.log('Starting to seed database...');
+    console.log("Starting to seed database...");
     const itemsToInsert = generateItems();
     await db.delete(items);
     await db.insert(items).values(itemsToInsert);
-    console.log('Successfully seeded database with 1000 items');
+    console.log("Successfully seeded database with 1000 items");
   } catch (error) {
-    console.error('Error seeding database:', error);
+    console.error("Error seeding database:", error);
   }
 }
 
