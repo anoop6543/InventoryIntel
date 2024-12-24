@@ -9,24 +9,30 @@ function generateSKU(category: string, index: number) {
   return `${category.substring(0, 3).toUpperCase()}-${String(index).padStart(4, '0')}`;
 }
 
-function generateItems() {
-  const itemsToInsert = [];
-  let index = 0;
+  function generateItems() {
+    const itemsToInsert = [];
+    let index = 0;
 
-  // Raw Materials
-  const rawMaterials = ["Steel Sheet", "Aluminum Rod", "Copper Wire", "Plastic Pellets", "Wood Planks", "Glass Sheets", "Rubber Sheets", "Carbon Fiber"];
-  for (let i = 0; i < 200; i++) {
-    const name = `${rawMaterials[i % rawMaterials.length]} Type ${Math.floor(i / rawMaterials.length) + 1}`;
-    itemsToInsert.push({
-      name,
-      sku: generateSKU("RAW", index++),
-      category: "Raw Materials",
-      quantity: Math.floor(Math.random() * 1000) + 100,
-      minQuantity: 50,
-      unitPrice: (Math.random() * 500 + 50).toFixed(2),
-      location: locations[Math.floor(Math.random() * locations.length)],
-      description: `Industrial grade ${name.toLowerCase()} for manufacturing use`
-    });
+    // Raw Materials
+    const rawMaterials = ["Steel Sheet", "Aluminum Rod", "Copper Wire"];
+    for (let i = 0; i < 200; i++) {
+      const name = `${rawMaterials[i % rawMaterials.length]} Type ${Math.floor(i / rawMaterials.length) + 1}`;
+      const quantity = i < 50 ? Math.floor(Math.random() * 10) + 1 : Math.floor(Math.random() * 1000) + 100; // Low stock for the first 50 items
+      itemsToInsert.push({
+        name,
+        sku: generateSKU("RAW", index++),
+        category: "Raw Materials",
+        quantity,
+        minQuantity: 50,
+        unitPrice: (Math.random() * 500 + 50).toFixed(2),
+        location: locations[Math.floor(Math.random() * locations.length)],
+        description: `Industrial grade ${name.toLowerCase()} for manufacturing use`
+      });
+    }
+
+    // Add more categories and items similarly...
+
+    return itemsToInsert;
   }
 
   // Tools
