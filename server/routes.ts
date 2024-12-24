@@ -1,12 +1,12 @@
-
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { items, auditLogs } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { items, auditLogs, suppliers } from "@db/schema";
+import { eq, desc, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import type { Item } from "@db/schema";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -15,9 +15,13 @@ export function registerRoutes(app: Express): Server {
   setupWebSocket(httpServer);
 
   app.post("/api/notify-supplier", async (req, res) => {
-    const lowStockItems = req.body;
+    if (!req.isAuthenticated() || req.user.role !== 'admin') {
+      return res.status(401).send("Not authorized");
+    }
+
+    const lowStockItems = req.body as Item[];
     const isDebug = process.env.NODE_ENV !== 'production';
-    
+
     if (isDebug) {
       console.log('Debug mode: Email would be sent for items:', lowStockItems);
       console.log('Debug mode: CC notification to:', 'anoop6543@gmail.com');
@@ -25,7 +29,7 @@ export function registerRoutes(app: Express): Server {
     }
 
     // Get relevant suppliers
-    const itemCategories = [...new Set(lowStockItems.map(item => item.category))];
+    const itemCategories = Array.from(new Set(lowStockItems.map(item => item.category)));
     const relevantSuppliers = await db.select().from(suppliers)
       .where(sql`category = ANY(${itemCategories})`);
 
@@ -38,7 +42,7 @@ export function registerRoutes(app: Express): Server {
     });
 
     const itemsList = lowStockItems
-      .map((item) => `
+      .map((item: Item) => `
         • ${item.name}
           SKU: ${item.sku}
           Current Stock: ${item.quantity}
@@ -73,7 +77,7 @@ Phone: (555) 123-4567
       html: `<p>Dear Supplier,</p>
 <p>We are writing to request an urgent replenishment of the following items that have fallen below our minimum stock requirements:</p>
 <div style="margin: 20px 0; padding: 10px; background: #f5f5f5;">
-${lowStockItems.map(item => `
+${lowStockItems.map((item: Item) => `
   <div style="margin-bottom: 15px;">
     <strong>${item.name}</strong><br>
     SKU: ${item.sku}<br>
@@ -104,7 +108,20 @@ Phone: (555) 123-4567</p>`
     }
   });
 
-  // Inventory routes
+  // Additional inventory management routes
+  app.get("/api/items/low-stock", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authorized");
+    }
+
+    const lowStockItems = await db.select()
+      .from(items)
+      .where(sql`quantity <= min_quantity`);
+
+    res.json(lowStockItems);
+  });
+
+  // Existing inventory routes
   app.get("/api/items", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authorized");
