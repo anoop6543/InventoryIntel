@@ -14,6 +14,14 @@ interface ClientInfo {
   role: string;
 }
 
+interface InventoryUpdate {
+  id: number;
+  name: string;
+  quantity: number;
+  previousQuantity: number;
+  timestamp: string;
+}
+
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
@@ -52,6 +60,20 @@ export function setupWebSocket(server: Server) {
               return;
             }
 
+            // Get the current item data
+            const [currentItem] = await db
+              .select()
+              .from(items)
+              .where(eq(items.id, itemId));
+
+            if (!currentItem) {
+              ws.send(JSON.stringify({
+                type: 'ERROR',
+                payload: { message: 'Item not found' }
+              }));
+              return;
+            }
+
             // Update item in database
             const [updatedItem] = await db
               .update(items)
@@ -59,10 +81,19 @@ export function setupWebSocket(server: Server) {
               .where(eq(items.id, itemId))
               .returning();
 
+            // Create inventory update message
+            const update: InventoryUpdate = {
+              id: updatedItem.id,
+              name: updatedItem.name,
+              quantity: updatedItem.quantity,
+              previousQuantity: currentItem.quantity,
+              timestamp: new Date().toISOString()
+            };
+
             // Broadcast update to all connected clients
             const updateMessage = JSON.stringify({
               type: 'INVENTORY_UPDATE',
-              payload: updatedItem
+              payload: update
             });
 
             wss.clients.forEach((client) => {
