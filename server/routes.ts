@@ -1,3 +1,4 @@
+
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
@@ -5,45 +6,43 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { items, auditLogs } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
-import nodemailer from "nodemailer"; // Install nodemailer if not already
-
-app.post("/api/notify-supplier", async (req, res) => {
-  const lowStockItems = req.body;
-
-  // Set up transporter for sending emails
-  const transporter = nodemailer.createTransport({
-    service: "gmail", // or any other service
-    auth: {
-      user: "your-email@gmail.com", // your email
-      pass: "your-email-password", // your email password
-    },
-  });
-
-  const itemsList = lowStockItems
-    .map((item) => `${item.name} (SKU: ${item.sku}) x${item.quantity}`)
-    .join("\n");
-
-  const mailOptions = {
-    from: "your-email@gmail.com",
-    to: "supplier-email@example.com", // supplier's email
-    subject: "Low Stock Alert",
-    text: `The following items are below minimum stock:\n${itemsList}`,
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-    res.status(200).send("Notification sent successfully");
-  } catch (error) {
-    console.error("Error sending email", error);
-    res.status(500).send("Error sending notification");
-  }
-});
+import nodemailer from "nodemailer";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
+
+  app.post("/api/notify-supplier", async (req, res) => {
+    const lowStockItems = req.body;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "your-email@gmail.com",
+        pass: "your-email-password",
+      },
+    });
+
+    const itemsList = lowStockItems
+      .map((item) => `${item.name} (SKU: ${item.sku}) x${item.quantity}`)
+      .join("\n");
+
+    const mailOptions = {
+      from: "your-email@gmail.com",
+      to: "supplier-email@example.com",
+      subject: "Low Stock Alert",
+      text: `The following items are below minimum stock:\n${itemsList}`,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      res.status(200).send("Notification sent successfully");
+    } catch (error) {
+      console.error("Error sending email", error);
+      res.status(500).send("Error sending notification");
+    }
+  });
 
   // Inventory routes
   app.get("/api/items", async (req, res) => {
@@ -110,36 +109,6 @@ export function registerRoutes(app: Express): Server {
       .limit(100);
 
     res.json(logs);
-  });
-
-  app.post("/api/notify-supplier", async (req, res) => {
-    const lowStockItems = req.body;
-    // Set up transporter for sending emails
-    const transporter = nodemailer.createTransport({
-      service: "gmail", // or any other service
-      auth: {
-        user: "your-email@gmail.com", // your email
-        pass: "your-email-password", // your email password
-      },
-    });
-
-    const itemsList = lowStockItems
-      .map((item) => `${item.name} (SKU: ${item.sku}) x${item.quantity}`)
-      .join("\n");
-    const mailOptions = {
-      from: "your-email@gmail.com",
-      to: "supplier-email@example.com", // supplier's email
-      subject: "Low Stock Alert",
-      text: `The following items are below minimum stock:\n${itemsList}`,
-    };
-
-    try {
-      await transporter.sendMail(mailOptions);
-      res.status(200).send("Notification sent successfully");
-    } catch (error) {
-      console.error("Error sending email", error);
-      res.status(500).send("Error sending notification");
-    }
   });
 
   return httpServer;
