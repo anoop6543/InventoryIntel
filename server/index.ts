@@ -66,11 +66,26 @@ let currentServer: ReturnType<typeof registerRoutes> | null = null;
       log("Static file serving setup complete");
     }
 
-    const PORT = 5000;
-    currentServer.listen(PORT, "0.0.0.0", () => {
-      const address = currentServer?.address() as AddressInfo;
-      log(`Server started successfully on port ${address.port}`);
-    });
+    const ports = [5000, 5001, 5002, 5003];
+    
+    const tryPort = (index: number) => {
+      if (index >= ports.length) {
+        throw new Error('No available ports found');
+      }
+      
+      currentServer.listen(ports[index], "0.0.0.0", () => {
+        const address = currentServer?.address() as AddressInfo;
+        log(`Server started successfully on port ${address.port}`);
+      }).on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          tryPort(index + 1);
+        } else {
+          throw err;
+        }
+      });
+    };
+    
+    tryPort(0);
 
   } catch (error) {
     console.error("Failed to start server:", error);
