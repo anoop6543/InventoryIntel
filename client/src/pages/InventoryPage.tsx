@@ -5,11 +5,12 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { useToast } from "@/hooks/use-toast";
 import InventoryTable from "@/components/InventoryTable";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Scan } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { ScannerDialog } from "@/components/ScannerDialog";
 
 export default function InventoryPage() {
   const { user } = useUser();
@@ -80,26 +81,32 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Inventory Management</h1>
-        {user?.role !== 'user' && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Item</DialogTitle>
-              </DialogHeader>
-              {/* Add item form would go here */}
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex gap-4">
+          {/* Make the Scan Item button more prominent */}
+          <Button variant="default" size="lg" onClick={() => setIsDialogOpen(true)}>
+            <Scan className="h-5 w-5 mr-2" />
+            Scan Item
+          </Button>
+          {user?.role !== 'user' && (
+            <Button variant="outline" size="lg">
+              <Plus className="h-5 w-5 mr-2" />
+              Add Item
+            </Button>
+          )}
+        </div>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Scan Inventory Item</DialogTitle>
+          </DialogHeader>
+          <ScannerDialog />
+        </DialogContent>
+      </Dialog>
 
       <InventoryTable 
         items={items || []}
