@@ -12,13 +12,14 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   // Setup WebSocket after HTTP server is created
-  const wsServer = setupWebSocket(httpServer);
+  let wsCleanup: (() => void) | undefined;
 
-  // Cleanup function for server shutdown
-  const cleanup = () => {
-    wsServer.cleanup();
-    httpServer.close();
-  };
+  setupWebSocket(httpServer).then(({ cleanup }) => {
+    wsCleanup = cleanup;
+    log("WebSocket server setup completed");
+  }).catch(error => {
+    log(`Failed to setup WebSocket server: ${error}`);
+  });
 
   // Inventory management routes with auth checks
   app.get("/api/items", async (req, res) => {
@@ -126,8 +127,12 @@ export function registerRoutes(app: Express): Server {
     res.json(orderItems);
   });
 
-  // Attach cleanup to server
-  httpServer.on('close', cleanup);
+  // Cleanup function for server shutdown
+  httpServer.on('close', () => {
+    if (wsCleanup) {
+      wsCleanup();
+    }
+  });
 
   return httpServer;
 }

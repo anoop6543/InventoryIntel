@@ -24,17 +24,8 @@ interface InventoryUpdate {
 
 let wss: WebSocketServer | null = null;
 
-export function setupWebSocket(server: Server) {
-  // Clean up existing WebSocket server if it exists
-  if (wss) {
-    log("Cleaning up existing WebSocket server");
-    wss.clients.forEach(client => {
-      client.terminate();
-    });
-    wss.close();
-    wss = null;
-  }
-
+// Helper function to create a new WebSocket server
+function createNewWSServer(server: Server) {
   wss = new WebSocketServer({ 
     server,
     path: "/ws",
@@ -141,31 +132,66 @@ export function setupWebSocket(server: Server) {
 
     ws.on("close", () => {
       clients.delete(ws);
+      log("WebSocket connection closed");
     });
 
-    // Handle errors
     ws.on("error", (error) => {
       log("WebSocket error: " + error);
       clients.delete(ws);
     });
   });
 
-  // Cleanup function
-  const cleanup = () => {
-    if (wss) {
-      wss.clients.forEach(client => {
-        client.terminate();
-      });
-      wss.close();
-      wss = null;
+  return wss;
+}
+
+export function setupWebSocket(server: Server) {
+  return new Promise<{ server: WebSocketServer; cleanup: () => void }>((resolve, reject) => {
+    try {
+      // Clean up existing WebSocket server if it exists
+      if (wss) {
+        log("Cleaning up existing WebSocket server");
+        const oldWss = wss;
+        wss = null;
+
+        // Close all existing connections
+        oldWss.clients.forEach(client => {
+          client.terminate();
+        });
+
+        oldWss.close(() => {
+          log("Old WebSocket server closed");
+          const newWss = createNewWSServer(server);
+          resolve({
+            server: newWss,
+            cleanup: () => {
+              if (newWss) {
+                newWss.clients.forEach(client => client.terminate());
+                newWss.close(() => {
+                  log("WebSocket server cleaned up");
+                  wss = null;
+                });
+              }
+            }
+          });
+        });
+      } else {
+        const newWss = createNewWSServer(server);
+        resolve({
+          server: newWss,
+          cleanup: () => {
+            if (newWss) {
+              newWss.clients.forEach(client => client.terminate());
+              newWss.close(() => {
+                log("WebSocket server cleaned up");
+                wss = null;
+              });
+            }
+          }
+        });
+      }
+    } catch (error) {
+      log("Error setting up WebSocket server: " + error);
+      reject(error);
     }
-  };
-
-  // Handle server shutdown
-  server.on('close', cleanup);
-
-  return {
-    server: wss,
-    cleanup
-  };
+  });
 }

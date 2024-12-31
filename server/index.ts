@@ -3,12 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { sql } from "drizzle-orm";
-import { AddressInfo } from "net";
 import { setupAuth } from "./auth";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Store server instance globally for proper cleanup
+let server: ReturnType<typeof registerRoutes> | null = null;
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -40,49 +42,19 @@ app.use((req, res, next) => {
   next();
 });
 
-let currentServer: ReturnType<typeof registerRoutes> | null = null;
-
-// Function to try different ports
-async function startServer(initialPort: number, maxRetries: number = 3) {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const port = initialPort + attempt;
-    try {
-      if (currentServer) {
-        await new Promise<void>((resolve) => {
-          currentServer!.close(() => {
-            log("Previous server instance closed");
-            resolve();
-          });
-        });
-      }
-
-      currentServer = registerRoutes(app);
-
-      await new Promise<void>((resolve, reject) => {
-        currentServer!.listen(port, "0.0.0.0", () => {
-          const address = currentServer?.address() as AddressInfo;
-          log(`Server started successfully on port ${address.port}`);
-          resolve();
-        }).on('error', (err: any) => {
-          if (err.code === 'EADDRINUSE') {
-            log(`Port ${port} is in use, trying next port...`);
-            reject(err);
-          } else {
-            log(`Failed to start server: ${err.message}`);
-            reject(err);
-          }
-        });
+// Graceful shutdown handler
+function gracefulShutdown() {
+  return new Promise<void>((resolve) => {
+    if (server) {
+      log('Closing server connections...');
+      server.close(() => {
+        log('Server closed');
+        resolve();
       });
-
-      return; // Server started successfully
-    } catch (err) {
-      if (attempt === maxRetries - 1) {
-        throw new Error(`Failed to start server after ${maxRetries} attempts`);
-      }
-      // Wait a bit before trying the next port
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    } else {
+      resolve();
     }
-  }
+  });
 }
 
 (async () => {
@@ -103,16 +75,23 @@ async function startServer(initialPort: number, maxRetries: number = 3) {
       res.status(status).json({ message });
     });
 
+    // Create a single server instance
+    server = registerRoutes(app);
+
+    // Setup Vite or static files based on environment
     if (app.get("env") === "development") {
-      await setupVite(app, currentServer!);
+      await setupVite(app, server);
       log("Vite middleware setup complete");
     } else {
       serveStatic(app);
       log("Static file serving setup complete");
     }
 
-    // Try to start the server with port 3000 as initial port
-    await startServer(3000);
+    // ALWAYS serve on port 5000
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      log(`Server listening on port ${PORT}`);
+    });
 
   } catch (error) {
     console.error("Failed to start server:", error);
@@ -121,18 +100,14 @@ async function startServer(initialPort: number, maxRetries: number = 3) {
 })();
 
 // Handle graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   log('SIGTERM received. Shutting down gracefully...');
-  currentServer?.close(() => {
-    log('Server closed');
-    process.exit(0);
-  });
+  await gracefulShutdown();
+  process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   log('SIGINT received. Shutting down gracefully...');
-  currentServer?.close(() => {
-    log('Server closed');
-    process.exit(0);
-  });
+  await gracefulShutdown();
+  process.exit(0);
 });
