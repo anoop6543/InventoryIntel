@@ -68,24 +68,21 @@ let currentServer: ReturnType<typeof registerRoutes> | null = null;
 
     const ports = [5000, 5001, 5002, 5003];
     
-    const tryPort = (index: number) => {
-      if (index >= ports.length) {
-        throw new Error('No available ports found');
-      }
+    // Serve static files in production
+    if (app.get("env") !== "development") {
+      app.use(express.static("dist/client"));
       
-      currentServer.listen(ports[index], "0.0.0.0", () => {
-        const address = currentServer?.address() as AddressInfo;
-        log(`Server started successfully on port ${address.port}`);
-      }).on('error', (err: any) => {
-        if (err.code === 'EADDRINUSE') {
-          tryPort(index + 1);
-        } else {
-          throw err;
-        }
+      // Handle client-side routing
+      app.get("*", (_req, res) => {
+        res.sendFile("dist/client/index.html", { root: "." });
       });
-    };
+    }
     
-    tryPort(0);
+    const port = parseInt(process.env.PORT || "5000");
+    currentServer.listen(port, "0.0.0.0", () => {
+      const address = currentServer?.address() as AddressInfo;
+      log(`Server started successfully on port ${address.port}`);
+    });
 
   } catch (error) {
     console.error("Failed to start server:", error);
