@@ -22,8 +22,20 @@ interface InventoryUpdate {
   timestamp: string;
 }
 
+let wss: WebSocketServer | null = null;
+
 export function setupWebSocket(server: Server) {
-  const wss = new WebSocketServer({ 
+  // Clean up existing WebSocket server if it exists
+  if (wss) {
+    log("Cleaning up existing WebSocket server");
+    wss.clients.forEach(client => {
+      client.terminate();
+    });
+    wss.close();
+    wss = null;
+  }
+
+  wss = new WebSocketServer({ 
     server,
     path: "/ws",
     host: "0.0.0.0"
@@ -96,7 +108,7 @@ export function setupWebSocket(server: Server) {
               payload: update
             });
 
-            wss.clients.forEach((client) => {
+            wss?.clients.forEach((client) => {
               if (client.readyState === WebSocket.OPEN) {
                 client.send(updateMessage);
               }
@@ -110,7 +122,7 @@ export function setupWebSocket(server: Server) {
               payload: message.payload
             });
 
-            wss.clients.forEach((client) => {
+            wss?.clients.forEach((client) => {
               const clientInfo = clients.get(client);
               if (client.readyState === WebSocket.OPEN && clientInfo?.role === 'admin') {
                 client.send(alertMessage);
@@ -138,20 +150,22 @@ export function setupWebSocket(server: Server) {
     });
   });
 
-  // Periodic ping to keep connections alive
-  const pingInterval = setInterval(() => {
-    wss.clients.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.ping();
-      }
-    });
-  }, 30000);
+  // Cleanup function
+  const cleanup = () => {
+    if (wss) {
+      wss.clients.forEach(client => {
+        client.terminate();
+      });
+      wss.close();
+      wss = null;
+    }
+  };
 
-  // Cleanup when server closes
-  server.on('close', () => {
-    clearInterval(pingInterval);
-    wss.close();
-  });
+  // Handle server shutdown
+  server.on('close', cleanup);
 
-  return wss;
+  return {
+    server: wss,
+    cleanup
+  };
 }

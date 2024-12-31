@@ -3,15 +3,22 @@ import { createServer, type Server } from "http";
 import { db } from "@db";
 import { items, auditLogs, suppliers, purchaseOrders, purchaseOrderItems } from "@db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import type { Item } from "@db/schema";
-import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { automationService } from "./services/inventory-automation";
 import { log } from "./vite";
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication first
-  setupAuth(app);
+  // Create HTTP server first
+  const httpServer = createServer(app);
+
+  // Setup WebSocket after HTTP server is created
+  const wsServer = setupWebSocket(httpServer);
+
+  // Cleanup function for server shutdown
+  const cleanup = () => {
+    wsServer.cleanup();
+    httpServer.close();
+  };
 
   // Inventory management routes with auth checks
   app.get("/api/items", async (req, res) => {
@@ -66,20 +73,6 @@ export function registerRoutes(app: Express): Server {
     res.json(updatedItem);
   });
 
-  app.get("/api/audit-logs", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role === "user") {
-      return res.status(401).send("Not authorized");
-    }
-
-    const logs = await db
-      .select()
-      .from(auditLogs)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(100);
-
-    res.json(logs);
-  });
-
   app.get("/api/items/low-stock", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authorized");
@@ -92,7 +85,7 @@ export function registerRoutes(app: Express): Server {
     res.json(lowStockItems);
   });
 
-  // Add new automation-related routes
+  // Add automation-related routes
   app.post("/api/automation/reorder-check", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== 'admin') {
       return res.status(401).send("Not authorized");
@@ -133,18 +126,8 @@ export function registerRoutes(app: Express): Server {
     res.json(orderItems);
   });
 
-  // Create HTTP server and setup WebSocket
-  const httpServer = createServer(app);
-  setupWebSocket(httpServer);
-
-  // Setup periodic automation check (every hour)
-  setInterval(async () => {
-    try {
-      await automationService.runAutomationCheck();
-    } catch (error) {
-      log(`Scheduled automation check failed: ${error}`);
-    }
-  }, 60 * 60 * 1000);
+  // Attach cleanup to server
+  httpServer.on('close', cleanup);
 
   return httpServer;
 }

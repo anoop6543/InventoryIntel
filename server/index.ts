@@ -4,12 +4,12 @@ import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { sql } from "drizzle-orm";
 import { AddressInfo } from "net";
+import { setupAuth } from "./auth";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -42,13 +42,58 @@ app.use((req, res, next) => {
 
 let currentServer: ReturnType<typeof registerRoutes> | null = null;
 
+// Function to try different ports
+async function startServer(initialPort: number, maxRetries: number = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const port = initialPort + attempt;
+    try {
+      if (currentServer) {
+        await new Promise<void>((resolve) => {
+          currentServer!.close(() => {
+            log("Previous server instance closed");
+            resolve();
+          });
+        });
+      }
+
+      currentServer = registerRoutes(app);
+
+      await new Promise<void>((resolve, reject) => {
+        currentServer!.listen(port, "0.0.0.0", () => {
+          const address = currentServer?.address() as AddressInfo;
+          log(`Server started successfully on port ${address.port}`);
+          resolve();
+        }).on('error', (err: any) => {
+          if (err.code === 'EADDRINUSE') {
+            log(`Port ${port} is in use, trying next port...`);
+            reject(err);
+          } else {
+            log(`Failed to start server: ${err.message}`);
+            reject(err);
+          }
+        });
+      });
+
+      return; // Server started successfully
+    } catch (err) {
+      if (attempt === maxRetries - 1) {
+        throw new Error(`Failed to start server after ${maxRetries} attempts`);
+      }
+      // Wait a bit before trying the next port
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
+
 (async () => {
   try {
     // Test database connection
     await db.execute(sql`SELECT 1`);
     log("Database connection established successfully");
 
-    currentServer = registerRoutes(app);
+    // Setup authentication
+    setupAuth(app);
+    log("Authentication setup completed");
 
     // Global error handler
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -59,30 +104,15 @@ let currentServer: ReturnType<typeof registerRoutes> | null = null;
     });
 
     if (app.get("env") === "development") {
-      await setupVite(app, currentServer);
+      await setupVite(app, currentServer!);
       log("Vite middleware setup complete");
     } else {
       serveStatic(app);
       log("Static file serving setup complete");
     }
 
-    const ports = [5000, 5001, 5002, 5003];
-    
-    // Serve static files in production
-    if (app.get("env") !== "development") {
-      app.use(express.static("dist/client"));
-      
-      // Handle client-side routing
-      app.get("*", (_req, res) => {
-        res.sendFile("dist/client/index.html", { root: "." });
-      });
-    }
-    
-    const port = parseInt(process.env.PORT || "5000");
-    currentServer.listen(port, "0.0.0.0", () => {
-      const address = currentServer?.address() as AddressInfo;
-      log(`Server started successfully on port ${address.port}`);
-    });
+    // Try to start the server with port 3000 as initial port
+    await startServer(3000);
 
   } catch (error) {
     console.error("Failed to start server:", error);
