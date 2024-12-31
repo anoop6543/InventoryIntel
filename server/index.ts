@@ -42,10 +42,11 @@ app.use((req, res, next) => {
 
 // Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Server error:', err);
+  log(`Error encountered: ${err.message}`);
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
   res.status(status).json({ message });
+  throw err;
 });
 
 (async () => {
@@ -58,7 +59,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     setupAuth(app);
     log("Authentication setup completed");
 
-    // Create HTTP server
+    // Register routes and create HTTP server
     const server = registerRoutes(app);
 
     // importantly only setup vite in development and after
@@ -76,25 +77,8 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     server.listen(PORT, "0.0.0.0", () => {
       log(`serving on port ${PORT}`);
     });
-
-    // Handle graceful shutdown
-    process.on('SIGTERM', () => {
-      log('SIGTERM received. Shutting down gracefully...');
-      server.close(() => {
-        log('Server closed successfully');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', () => {
-      log('SIGINT received. Shutting down gracefully...');
-      server.close(() => {
-        log('Server closed successfully');
-        process.exit(0);
-      });
-    });
   } catch (error) {
-    log(`Server initialization failed: ${error}`);
+    log(`Fatal error during server initialization: ${error}`);
     process.exit(1);
   }
 })();
