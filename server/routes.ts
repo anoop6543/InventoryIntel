@@ -3,23 +3,11 @@ import { createServer, type Server } from "http";
 import { db } from "@db";
 import { items, auditLogs, suppliers, purchaseOrders, purchaseOrderItems } from "@db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { setupWebSocket } from "./websocket";
-import { automationService } from "./services/inventory-automation";
 import { log } from "./vite";
 
 export function registerRoutes(app: Express): Server {
-  // Create HTTP server first
+  // Create HTTP server
   const httpServer = createServer(app);
-
-  // Setup WebSocket after HTTP server is created
-  let wsCleanup: (() => void) | undefined;
-
-  setupWebSocket(httpServer).then(({ cleanup }) => {
-    wsCleanup = cleanup;
-    log("WebSocket server setup completed");
-  }).catch(error => {
-    log(`Failed to setup WebSocket server: ${error}`);
-  });
 
   // Inventory management routes with auth checks
   app.get("/api/items", async (req, res) => {
@@ -86,21 +74,6 @@ export function registerRoutes(app: Express): Server {
     res.json(lowStockItems);
   });
 
-  // Add automation-related routes
-  app.post("/api/automation/reorder-check", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== 'admin') {
-      return res.status(401).send("Not authorized");
-    }
-
-    try {
-      await automationService.runAutomationCheck();
-      res.json({ message: "Automation check completed successfully" });
-    } catch (error) {
-      log(`Error running automation check: ${error}`);
-      res.status(500).json({ message: "Failed to run automation check" });
-    }
-  });
-
   app.get("/api/purchase-orders", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authorized");
@@ -125,13 +98,6 @@ export function registerRoutes(app: Express): Server {
       .where(eq(purchaseOrderItems.purchaseOrderId, orderId));
 
     res.json(orderItems);
-  });
-
-  // Cleanup function for server shutdown
-  httpServer.on('close', () => {
-    if (wsCleanup) {
-      wsCleanup();
-    }
   });
 
   return httpServer;

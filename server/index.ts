@@ -9,9 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Store server instance globally for proper cleanup
-let server: ReturnType<typeof registerRoutes> | null = null;
-
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -42,20 +40,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Graceful shutdown handler
-function gracefulShutdown() {
-  return new Promise<void>((resolve) => {
-    if (server) {
-      log('Closing server connections...');
-      server.close(() => {
-        log('Server closed');
-        resolve();
-      });
-    } else {
-      resolve();
-    }
-  });
-}
+// Error handling middleware
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Server error:', err);
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  res.status(status).json({ message });
+});
 
 (async () => {
   try {
@@ -67,47 +58,43 @@ function gracefulShutdown() {
     setupAuth(app);
     log("Authentication setup completed");
 
-    // Global error handler
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      console.error('Server error:', err);
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      res.status(status).json({ message });
-    });
+    // Create HTTP server
+    const server = registerRoutes(app);
 
-    // Create a single server instance
-    server = registerRoutes(app);
-
-    // Setup Vite or static files based on environment
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
     if (app.get("env") === "development") {
       await setupVite(app, server);
-      log("Vite middleware setup complete");
     } else {
       serveStatic(app);
-      log("Static file serving setup complete");
     }
 
-    // ALWAYS serve on port 5000
+    // ALWAYS serve the app on port 5000
+    // this serves both the API and the client
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
-      log(`Server listening on port ${PORT}`);
+      log(`serving on port ${PORT}`);
     });
 
+    // Handle graceful shutdown
+    process.on('SIGTERM', () => {
+      log('SIGTERM received. Shutting down gracefully...');
+      server.close(() => {
+        log('Server closed successfully');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      log('SIGINT received. Shutting down gracefully...');
+      server.close(() => {
+        log('Server closed successfully');
+        process.exit(0);
+      });
+    });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    log(`Server initialization failed: ${error}`);
     process.exit(1);
   }
 })();
-
-// Handle graceful shutdown
-process.on('SIGTERM', async () => {
-  log('SIGTERM received. Shutting down gracefully...');
-  await gracefulShutdown();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  log('SIGINT received. Shutting down gracefully...');
-  await gracefulShutdown();
-  process.exit(0);
-});
