@@ -1,8 +1,7 @@
-
 import { Route, Switch } from "wouter";
 import { useUser } from "@/hooks/use-user";
 import AuthPage from "@/pages/AuthPage";
-import DashboardPage from "@/pages/DashboardPage";
+import { Dashboard } from "@/pages/Dashboard";
 import InventoryPage from "@/pages/InventoryPage";
 import ReportsPage from "@/pages/ReportsPage";
 import LowStockPage from "@/pages/LowStockPage";
@@ -27,9 +26,9 @@ export default function App() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="flex-1 bg-slate-100 p-8 overflow-y-auto">
+      <main className="flex-1 bg-slate-100 overflow-y-auto">
         <Switch>
-          <Route path="/" component={DashboardPage} />
+          <Route path="/" component={Dashboard} />
           <Route path="/inventory" component={InventoryPage} />
           <Route path="/reports" component={ReportsPage} />
           <Route path="/low-stock" component={LowStockPage} />
