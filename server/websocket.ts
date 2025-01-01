@@ -93,17 +93,23 @@ function createNewWSServer(server: Server) {
               timestamp: new Date().toISOString()
             };
 
-            // Broadcast update to all connected clients
-            const updateMessage = JSON.stringify({
-              type: 'INVENTORY_UPDATE',
-              payload: update
-            });
+            // Use a debounce mechanism for broadcasts
+            const now = Date.now();
+            const lastBroadcast = (client as any).lastBroadcast || 0;
+            
+            if (now - lastBroadcast > 30000) { // 30 second debounce
+              const updateMessage = JSON.stringify({
+                type: 'INVENTORY_UPDATE',
+                payload: update
+              });
 
-            wss?.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(updateMessage);
-              }
-            });
+              wss?.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  (client as any).lastBroadcast = now;
+                  client.send(updateMessage);
+                }
+              });
+            }
             break;
 
           case 'STOCK_ALERT':

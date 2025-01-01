@@ -20,7 +20,8 @@ class WebSocketClient {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isConnecting: boolean = false;
   private lastMessageTimestamp: number = 0;
-  private readonly DEBOUNCE_TIME = 5000; // 5 seconds between notifications
+  private readonly DEBOUNCE_TIME = 30000; // 30 seconds between notifications
+  private readonly RECONNECT_DELAY = 2000; // 2 seconds between reconnection attempts
 
   connect() {
     if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {
