@@ -1,5 +1,5 @@
+
 import { useEffect, useState } from 'react';
-import { useToast } from "@/hooks/use-toast";
 
 export interface InventoryUpdate {
   id: number;
@@ -19,6 +19,8 @@ class WebSocketClient {
   private messageHandlers: ((message: WSMessage) => void)[] = [];
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isConnecting: boolean = false;
+  private lastMessageTimestamp: number = 0;
+  private readonly DEBOUNCE_TIME = 5000; // 5 seconds between notifications
 
   connect() {
     if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {
@@ -32,6 +34,16 @@ class WebSocketClient {
     this.ws.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data);
+        const now = Date.now();
+        
+        // Only process inventory updates if enough time has passed
+        if (message.type === 'INVENTORY_UPDATE') {
+          if (now - this.lastMessageTimestamp < this.DEBOUNCE_TIME) {
+            return;
+          }
+          this.lastMessageTimestamp = now;
+        }
+        
         this.messageHandlers.forEach(handler => handler(message));
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -47,15 +59,14 @@ class WebSocketClient {
     };
 
     this.ws.onclose = () => {
-      this.isConnecting = false;
-      this.ws = null;
-      // Only attempt to reconnect if we're not already trying
-      if (!this.reconnectTimer) {
+      if (!this.reconnectTimer && !this.isConnecting) {
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           this.connect();
-        }, 5000); // Wait 5 seconds before reconnecting
+        }, 5000);
       }
+      this.isConnecting = false;
+      this.ws = null;
     };
   }
 
@@ -77,36 +88,18 @@ export const wsClient = new WebSocketClient();
 
 export function useInventoryNotifications() {
   const [updates, setUpdates] = useState<InventoryUpdate[]>([]);
-  const { toast } = useToast();
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
     wsClient.connect();
-
     const unsubscribe = wsClient.subscribe((message) => {
       if (message.type === 'INVENTORY_UPDATE') {
         const update = message.payload as InventoryUpdate;
-
-        // Prevent duplicate notifications by checking timestamp
-        if (lastUpdate !== update.timestamp) {
-          setUpdates(prev => [update, ...prev].slice(0, 10)); // Keep last 10 updates
-          setLastUpdate(update.timestamp);
-
-          // Show toast notification for significant changes
-          const change = update.quantity - update.previousQuantity;
-          const changeText = change > 0 ? `increased by ${change}` : `decreased by ${Math.abs(change)}`;
-
-          toast({
-            title: "Inventory Update",
-            description: `${update.name} stock ${changeText}`,
-            variant: change < 0 ? "destructive" : "default",
-          });
-        }
+        setUpdates(prev => [update, ...prev].slice(0, 10));
       }
     });
 
     return () => unsubscribe();
-  }, [toast, lastUpdate]);
+  }, []);
 
   return updates;
 }
