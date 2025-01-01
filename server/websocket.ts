@@ -95,9 +95,10 @@ function createNewWSServer(server: Server) {
 
             // Use a debounce mechanism for broadcasts
             const now = Date.now();
-            const lastBroadcast = (client as any).lastBroadcast || 0;
+            const lastBroadcast = global.lastInventoryBroadcast || 0;
             
-            if (now - lastBroadcast > 30000) { // 30 second debounce
+            if (now - lastBroadcast > 60000) { // 1 minute debounce
+              global.lastInventoryBroadcast = now;
               const updateMessage = JSON.stringify({
                 type: 'INVENTORY_UPDATE',
                 payload: update
