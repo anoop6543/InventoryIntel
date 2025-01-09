@@ -68,7 +68,9 @@ export function useUser() {
     queryKey: ['user'],
     queryFn: fetchUser,
     staleTime: Infinity,
-    retry: false
+    retry: false,
+    refetchInterval: 30000, // Check auth every 30 seconds instead of continuously
+    refetchOnWindowFocus: false
   });
 
   const loginMutation = useMutation<RequestResult, Error, InsertUser>({
