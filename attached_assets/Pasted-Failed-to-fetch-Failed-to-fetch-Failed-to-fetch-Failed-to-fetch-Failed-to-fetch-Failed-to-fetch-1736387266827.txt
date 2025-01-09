@@ -1,0 +1,38 @@
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+at window.fetch (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:218642)
+at ping (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:732:13)
+at waitForSuccessfulPing (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:751:17)
+at async WebSocket.<anonymous> (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:557:7)
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+at window.fetch (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:218642)
+at ping (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:732:13)
+at waitForSuccessfulPing (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:751:17)
+at async WebSocket.<anonymous> (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:557:7)
+Failed to fetch
+Failed to fetch
+at window.fetch (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:218642)
+at ping (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:732:13)
+at waitForSuccessfulPing (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:751:17)
+at async WebSocket.<anonymous> (https://a4c7cec8-e23d-4f00-9322-27babb4a5338-00-nzwf8b5odm3r.janeway.replit.dev/@vite/client:557:7)
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
+Failed to fetch
