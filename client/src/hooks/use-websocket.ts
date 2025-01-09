@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from 'react';
 
 export function useWebSocket(onMessage: (data: any) => void) {
@@ -5,31 +6,35 @@ export function useWebSocket(onMessage: (data: any) => void) {
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
 
-  const connect = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    ws.current = new WebSocket(`${protocol}//${host}/ws`);
+  useEffect(() => {
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      ws.current = new WebSocket(`${protocol}//${host}/ws`);
 
-    ws.current.onopen = () => {
-      reconnectAttempts.current = 0;
+      ws.current.onopen = () => {
+        reconnectAttempts.current = 0;
+      };
+
+      ws.current.onerror = () => {
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          reconnectAttempts.current++;
+          setTimeout(connect, 1000 * Math.min(reconnectAttempts.current, 30));
+        }
+      };
+
+      ws.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          onMessage(data);
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
     };
 
-    ws.current.onerror = () => {
-      if (reconnectAttempts.current < maxReconnectAttempts) {
-        reconnectAttempts.current++;
-        setTimeout(connect, 1000 * Math.min(reconnectAttempts.current, 30));
-      }
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        onMessage(data);
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
-      }
-    };
-
+    connect();
+    
     return () => {
       ws.current?.close();
     };
