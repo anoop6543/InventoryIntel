@@ -47,7 +47,6 @@ let server: any = null;
 let wsServer: any = null;
 let isShuttingDown = false;
 
-// Cleanup function to handle server shutdown
 async function cleanup() {
   if (isShuttingDown) return;
   isShuttingDown = true;
@@ -55,14 +54,19 @@ async function cleanup() {
   try {
     log("Starting cleanup process...");
 
-    // Kill any existing processes on port 5000
+    // Forcefully kill any existing processes on port 5000
     try {
       const { stdout } = await execAsync("lsof -t -i:5000");
       if (stdout) {
         const pids = stdout.split('\n').filter(Boolean);
         for (const pid of pids) {
           if (pid !== process.pid.toString()) {
-            await execAsync(`kill -9 ${pid}`);
+            try {
+              await execAsync(`kill -9 ${pid}`);
+              log(`Killed process ${pid}`);
+            } catch (error) {
+              // Ignore errors when killing processes
+            }
           }
         }
       }
@@ -72,28 +76,26 @@ async function cleanup() {
 
     if (wsServer) {
       log("Cleaning up WebSocket server...");
-      const wsCleanup = wsServer.cleanup;
-      wsServer = null;
-      await wsCleanup();
+      try {
+        const wsCleanup = wsServer.cleanup;
+        wsServer = null;
+        await wsCleanup();
+      } catch (error) {
+        log(`Error cleaning up WebSocket server: ${error}`);
+      }
     }
 
     if (server) {
       log("Closing HTTP server...");
-      await new Promise<void>((resolve, reject) => {
-        server.close((err: Error) => {
-          if (err) {
-            log(`Error closing server: ${err.message}`);
-            reject(err);
-          } else {
-            log("Server closed successfully");
-            resolve();
-          }
+      await new Promise<void>((resolve) => {
+        server.close(() => {
+          log("Server closed successfully");
+          resolve();
         });
         // Force close after timeout
         setTimeout(() => {
-          server.emit('close');
           resolve();
-        }, 5000);
+        }, 1000);
       });
       server = null;
     }
@@ -103,22 +105,17 @@ async function cleanup() {
   } catch (error) {
     log(`Error during cleanup: ${error}`);
     isShuttingDown = false;
-    process.exit(1);
   }
 }
 
-// Handle process termination
 process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
 
-// Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   log(`Error encountered: ${err.message}`);
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-
   res.status(status).json({ message });
-  throw err;
 });
 
 (async () => {
@@ -162,12 +159,9 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
 
     server.on('error', async (error: any) => {
+      log(`Server error: ${error.message}`);
       if (error.code === 'EADDRINUSE') {
         log(`Port ${PORT} is already in use. Attempting cleanup and retry...`);
-        await cleanup();
-        process.exit(1);
-      } else {
-        log(`Server error: ${error.message}`);
         await cleanup();
         process.exit(1);
       }
