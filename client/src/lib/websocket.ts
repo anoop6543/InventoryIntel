@@ -9,7 +9,7 @@ export interface InventoryUpdate {
 }
 
 export interface WSMessage {
-  type: 'INVENTORY_UPDATE' | 'STOCK_ALERT' | 'CONNECTION_ACK' | 'ERROR';
+  type: 'INVENTORY_UPDATE' | 'CONNECTION_ACK' | 'ERROR';
   payload: any;
 }
 
@@ -25,7 +25,7 @@ class WebSocketClient {
   private retryCount = 0;
 
   connect() {
-    if (this.isConnecting || (this.ws?.readyState === WebSocket.OPEN) || this.retryCount >= this.MAX_RETRIES) {
+    if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN || this.retryCount >= this.MAX_RETRIES) {
       return;
     }
 
@@ -38,7 +38,7 @@ class WebSocketClient {
         const message: WSMessage = JSON.parse(event.data);
         const now = Date.now();
 
-        // Only process inventory updates if enough time has passed
+        // Debounce inventory updates
         if (message.type === 'INVENTORY_UPDATE') {
           if (now - this.lastMessageTimestamp < this.DEBOUNCE_TIME) {
             return;
@@ -71,7 +71,7 @@ class WebSocketClient {
           this.reconnectTimer = null;
           this.retryCount++;
           this.connect();
-        }, this.RECONNECT_DELAY);
+        }, this.RECONNECT_DELAY * Math.min(this.retryCount + 1, 5));
       }
     };
 
