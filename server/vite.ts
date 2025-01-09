@@ -49,10 +49,10 @@ export async function setupVite(app: Express, server: Server) {
       middlewareMode: true,
       hmr: {
         server,
+        path: '/hmr/',
+        timeout: 120000,
         clientPort: 443,
-        port: 443,
-        host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co',
-        protocol: 'wss'
+        host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'
       },
     },
     appType: "custom",
