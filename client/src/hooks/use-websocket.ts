@@ -5,8 +5,17 @@ export function useWebSocket(onMessage: (data: any) => void) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host || '0.0.0.0:5000';
+    const host = window.location.host;
     ws.current = new WebSocket(`${protocol}//${host}/ws`);
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setTimeout(() => {
+        if (ws.current?.readyState === WebSocket.CLOSED) {
+          ws.current = new WebSocket(`${protocol}//${host}/ws`);
+        }
+      }, 5000);
+    };
 
     ws.current.onmessage = (event) => {
       try {

@@ -18,15 +18,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
-    hmr: {
-      clientPort: 443,
-      host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'
-    },
-    hmr: {
-      protocol: 'ws',
-      host: '0.0.0.0',
-      port: 3000
-    },
+    hmr: false,
     proxy: {
       '/api': {
         target: 'http://0.0.0.0:5000',
@@ -34,7 +26,8 @@ export default defineConfig({
       },
       '/ws': {
         target: 'ws://0.0.0.0:5000',
-        ws: true
+        ws: true,
+        secure: false
       }
     }
   },
