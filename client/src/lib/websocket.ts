@@ -62,19 +62,20 @@ class WebSocketClient {
     };
 
     this.ws.onclose = () => {
-      if (!this.reconnectTimer && !this.isConnecting) {
+      this.ws = null;
+      this.isConnecting = false;
+
+      // Only try to reconnect if we haven't exceeded the maximum retries
+      if (!this.reconnectTimer && this.retryCount < this.MAX_RETRIES) {
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           this.retryCount++;
           this.connect();
         }, this.RECONNECT_DELAY);
       }
-      this.isConnecting = false;
-      this.ws = null;
     };
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+    this.ws.onerror = () => {
       if (this.ws) {
         this.ws.close();
       }
@@ -104,8 +105,10 @@ export function useInventoryNotifications() {
     wsClient.connect();
     const unsubscribe = wsClient.subscribe((message) => {
       if (message.type === 'INVENTORY_UPDATE') {
-        const update = message.payload as InventoryUpdate;
-        setUpdates(prev => [update, ...prev].slice(0, 10));
+        setUpdates(prev => {
+          const update = message.payload as InventoryUpdate;
+          return [update, ...prev].slice(0, 10); // Keep only last 10 updates
+        });
       }
     });
 

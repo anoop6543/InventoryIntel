@@ -49,16 +49,23 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   res.status(status).json({ message });
 });
 
-// Cleanup function to terminate server and connections
-function cleanup() {
-  process.exit(0);
+let currentServer: any = null;
+
+// Cleanup function
+async function cleanup() {
+  if (currentServer) {
+    return new Promise<void>((resolve) => {
+      currentServer.close(() => {
+        currentServer = null;
+        resolve();
+      });
+    });
+  }
 }
 
 // Handle process termination
-process.on('SIGTERM', cleanup);
-process.on('SIGINT', cleanup);
-
-let server: any = null;
+process.on('SIGTERM', () => cleanup());
+process.on('SIGINT', () => cleanup());
 
 (async () => {
   try {
@@ -71,7 +78,8 @@ let server: any = null;
     log("Authentication setup completed");
 
     // Register routes and create HTTP server
-    server = registerRoutes(app);
+    const server = registerRoutes(app);
+    currentServer = server;
 
     // Setup Vite or static serving
     if (app.get("env") === "development") {
@@ -80,47 +88,35 @@ let server: any = null;
       serveStatic(app);
     }
 
-    // Function to try different ports
-    const startServer = async (port: number, maxRetries = 3): Promise<void> => {
+    // Start server
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", async () => {
+      log(`Server starting on port ${PORT}...`);
+
       try {
-        await new Promise<void>((resolve, reject) => {
-          server.once('error', (err: any) => {
-            if (err.code === 'EADDRINUSE' && port < (5000 + maxRetries)) {
-              log(`Port ${port} is in use, trying ${port + 1}`);
-              startServer(port + 1, maxRetries).then(resolve).catch(reject);
-            } else {
-              reject(err);
-            }
-          });
-
-          server.once('listening', async () => {
-            log(`Server started on port ${port}`);
-            try {
-              const { cleanup: wsCleanup } = await setupWebSocket(server);
-              server.once('close', wsCleanup);
-              resolve();
-            } catch (error) {
-              log(`WebSocket setup failed: ${error}`);
-              reject(error);
-            }
-          });
-
-          server.listen(port, "0.0.0.0");
-        });
+        const { cleanup: wsCleanup } = await setupWebSocket(server);
+        server.once('close', wsCleanup);
+        log(`Server and WebSocket setup complete on port ${PORT}`);
       } catch (error) {
-        if (port >= (5000 + maxRetries)) {
-          throw new Error(`Unable to find available port after ${maxRetries} retries`);
-        }
-        throw error;
+        log(`WebSocket setup failed: ${error}`);
+        await cleanup();
+        process.exit(1);
       }
-    };
+    });
 
-    await startServer(5000);
+    server.on('error', async (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Port ${PORT} is already in use. Please stop any other processes using this port.`);
+      } else {
+        log(`Server error: ${error.message}`);
+      }
+      await cleanup();
+      process.exit(1);
+    });
+
   } catch (error) {
     log(`Fatal error during server initialization: ${error}`);
-    if (server) {
-      server.close();
-    }
+    await cleanup();
     process.exit(1);
   }
 })();

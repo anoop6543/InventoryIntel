@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { log } from "./vite";
 
 interface WSMessage {
-  type: 'INVENTORY_UPDATE' | 'STOCK_ALERT' | 'CONNECTION_ACK' | 'ERROR';
+  type: 'INVENTORY_UPDATE' | 'CONNECTION_ACK' | 'ERROR';
   payload: any;
 }
 
@@ -14,17 +14,8 @@ interface ClientInfo {
   role: string;
 }
 
-interface InventoryUpdate {
-  id: number;
-  name: string;
-  quantity: number;
-  previousQuantity: number;
-  timestamp: string;
-}
-
 let wss: WebSocketServer | null = null;
 
-// Helper function to create a new WebSocket server
 function createNewWSServer(server: Server) {
   wss = new WebSocketServer({ 
     server,
@@ -32,19 +23,16 @@ function createNewWSServer(server: Server) {
     host: "0.0.0.0"
   });
 
-  // Store connected clients with their roles
   const clients = new Map<WebSocket, ClientInfo>();
 
   wss.on("connection", async (ws) => {
     log("New WebSocket connection");
 
-    // Send acknowledgment
     ws.send(JSON.stringify({
       type: 'CONNECTION_ACK',
       payload: { message: 'Connected to inventory management system' }
     }));
 
-    // Add client to connected clients
     clients.set(ws, { role: 'user' });
 
     ws.on("message", async (rawMessage) => {
@@ -53,9 +41,8 @@ function createNewWSServer(server: Server) {
 
         switch (message.type) {
           case 'INVENTORY_UPDATE':
-            // Validate and process inventory update
-            const { itemId, quantity } = message.payload;
-            if (typeof itemId !== 'number' || typeof quantity !== 'number') {
+            const update = message.payload;
+            if (!update?.id || typeof update.quantity !== 'number') {
               ws.send(JSON.stringify({
                 type: 'ERROR',
                 payload: { message: 'Invalid update format' }
@@ -63,11 +50,10 @@ function createNewWSServer(server: Server) {
               return;
             }
 
-            // Get the current item data
             const [currentItem] = await db
               .select()
               .from(items)
-              .where(eq(items.id, itemId));
+              .where(eq(items.id, update.id));
 
             if (!currentItem) {
               ws.send(JSON.stringify({
@@ -77,53 +63,21 @@ function createNewWSServer(server: Server) {
               return;
             }
 
-            // Update item in database
-            const [updatedItem] = await db
-              .update(items)
-              .set({ quantity })
-              .where(eq(items.id, itemId))
-              .returning();
-
-            // Create inventory update message
-            const update: InventoryUpdate = {
-              id: updatedItem.id,
-              name: updatedItem.name,
-              quantity: updatedItem.quantity,
-              previousQuantity: currentItem.quantity,
-              timestamp: new Date().toISOString()
-            };
-
-            // Use a debounce mechanism for broadcasts
-            const now = Date.now();
-            const lastBroadcast = global.lastInventoryBroadcast || 0;
-            
-            if (now - lastBroadcast > 60000) { // 1 minute debounce
-              global.lastInventoryBroadcast = now;
-              const updateMessage = JSON.stringify({
-                type: 'INVENTORY_UPDATE',
-                payload: update
-              });
-
-              wss?.clients.forEach((client) => {
-                if (client.readyState === WebSocket.OPEN) {
-                  (client as any).lastBroadcast = now;
-                  client.send(updateMessage);
-                }
-              });
-            }
-            break;
-
-          case 'STOCK_ALERT':
-            // Broadcast stock alerts to admin clients
-            const alertMessage = JSON.stringify({
-              type: 'STOCK_ALERT',
-              payload: message.payload
+            // Broadcast update to all connected clients except sender
+            const updateMessage = JSON.stringify({
+              type: 'INVENTORY_UPDATE',
+              payload: {
+                id: currentItem.id,
+                name: currentItem.name,
+                quantity: update.quantity,
+                previousQuantity: currentItem.quantity,
+                timestamp: new Date().toISOString()
+              }
             });
 
             wss?.clients.forEach((client) => {
-              const clientInfo = clients.get(client);
-              if (client.readyState === WebSocket.OPEN && clientInfo?.role === 'admin') {
-                client.send(alertMessage);
+              if (client.readyState === WebSocket.OPEN && client !== ws) {
+                client.send(updateMessage);
               }
             });
             break;
@@ -142,9 +96,9 @@ function createNewWSServer(server: Server) {
       log("WebSocket connection closed");
     });
 
-    ws.on("error", (error) => {
-      log("WebSocket error: " + error);
+    ws.on("error", () => {
       clients.delete(ws);
+      log("WebSocket connection error");
     });
   });
 
@@ -152,36 +106,19 @@ function createNewWSServer(server: Server) {
 }
 
 export function setupWebSocket(server: Server) {
-  return new Promise<{ server: WebSocketServer; cleanup: () => void }>((resolve, reject) => {
-    try {
-      // Clean up existing WebSocket server if it exists
-      if (wss) {
-        log("Cleaning up existing WebSocket server");
-        const oldWss = wss;
-        wss = null;
+  return new Promise<{ server: WebSocketServer; cleanup: () => void }>((resolve) => {
+    // Clean up existing WebSocket server if it exists
+    if (wss) {
+      const oldWss = wss;
+      wss = null;
 
-        // Close all existing connections
-        oldWss.clients.forEach(client => {
-          client.terminate();
-        });
+      // Close all existing connections
+      oldWss.clients.forEach(client => {
+        client.terminate();
+      });
 
-        oldWss.close(() => {
-          log("Old WebSocket server closed");
-          const newWss = createNewWSServer(server);
-          resolve({
-            server: newWss,
-            cleanup: () => {
-              if (newWss) {
-                newWss.clients.forEach(client => client.terminate());
-                newWss.close(() => {
-                  log("WebSocket server cleaned up");
-                  wss = null;
-                });
-              }
-            }
-          });
-        });
-      } else {
+      oldWss.close(() => {
+        log("Old WebSocket server closed");
         const newWss = createNewWSServer(server);
         resolve({
           server: newWss,
@@ -195,10 +132,21 @@ export function setupWebSocket(server: Server) {
             }
           }
         });
-      }
-    } catch (error) {
-      log("Error setting up WebSocket server: " + error);
-      reject(error);
+      });
+    } else {
+      const newWss = createNewWSServer(server);
+      resolve({
+        server: newWss,
+        cleanup: () => {
+          if (newWss) {
+            newWss.clients.forEach(client => client.terminate());
+            newWss.close(() => {
+              log("WebSocket server cleaned up");
+              wss = null;
+            });
+          }
+        }
+      });
     }
   });
 }
