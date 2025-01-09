@@ -11,11 +11,6 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server
   const httpServer = createServer(app);
 
-  // Setup WebSocket server
-  setupWebSocket(httpServer).catch(error => {
-    log(`Failed to setup WebSocket server: ${error}`);
-  });
-
   // Inventory management routes with auth checks
   app.get("/api/items", async (req, res) => {
     if (!req.isAuthenticated()) {

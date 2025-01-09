@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { sql } from "drizzle-orm";
 import { setupAuth } from "./auth";
+import { setupWebSocket } from "./websocket";
 
 const app = express();
 app.use(express.json());
@@ -46,8 +47,18 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
   res.status(status).json({ message });
-  throw err;
 });
+
+// Cleanup function to terminate server and connections
+function cleanup() {
+  process.exit(0);
+}
+
+// Handle process termination
+process.on('SIGTERM', cleanup);
+process.on('SIGINT', cleanup);
+
+let server: any = null;
 
 (async () => {
   try {
@@ -60,25 +71,56 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     log("Authentication setup completed");
 
     // Register routes and create HTTP server
-    const server = registerRoutes(app);
+    server = registerRoutes(app);
 
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
+    // Setup Vite or static serving
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // ALWAYS serve the app on port 5000
-    // this serves both the API and the client
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`serving on port ${PORT}`);
-    });
+    // Function to try different ports
+    const startServer = async (port: number, maxRetries = 3): Promise<void> => {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', (err: any) => {
+            if (err.code === 'EADDRINUSE' && port < (5000 + maxRetries)) {
+              log(`Port ${port} is in use, trying ${port + 1}`);
+              startServer(port + 1, maxRetries).then(resolve).catch(reject);
+            } else {
+              reject(err);
+            }
+          });
+
+          server.once('listening', async () => {
+            log(`Server started on port ${port}`);
+            try {
+              const { cleanup: wsCleanup } = await setupWebSocket(server);
+              server.once('close', wsCleanup);
+              resolve();
+            } catch (error) {
+              log(`WebSocket setup failed: ${error}`);
+              reject(error);
+            }
+          });
+
+          server.listen(port, "0.0.0.0");
+        });
+      } catch (error) {
+        if (port >= (5000 + maxRetries)) {
+          throw new Error(`Unable to find available port after ${maxRetries} retries`);
+        }
+        throw error;
+      }
+    };
+
+    await startServer(5000);
   } catch (error) {
     log(`Fatal error during server initialization: ${error}`);
+    if (server) {
+      server.close();
+    }
     process.exit(1);
   }
 })();

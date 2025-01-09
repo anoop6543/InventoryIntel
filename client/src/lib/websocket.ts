@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 
 export interface InventoryUpdate {
@@ -38,7 +37,7 @@ class WebSocketClient {
       try {
         const message: WSMessage = JSON.parse(event.data);
         const now = Date.now();
-        
+
         // Only process inventory updates if enough time has passed
         if (message.type === 'INVENTORY_UPDATE') {
           if (now - this.lastMessageTimestamp < this.DEBOUNCE_TIME) {
@@ -46,7 +45,7 @@ class WebSocketClient {
           }
           this.lastMessageTimestamp = now;
         }
-        
+
         this.messageHandlers.forEach(handler => handler(message));
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -55,6 +54,7 @@ class WebSocketClient {
 
     this.ws.onopen = () => {
       this.isConnecting = false;
+      this.retryCount = 0;
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
@@ -65,11 +65,19 @@ class WebSocketClient {
       if (!this.reconnectTimer && !this.isConnecting) {
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
+          this.retryCount++;
           this.connect();
-        }, 5000);
+        }, this.RECONNECT_DELAY);
       }
       this.isConnecting = false;
       this.ws = null;
+    };
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      if (this.ws) {
+        this.ws.close();
+      }
     };
   }
 
