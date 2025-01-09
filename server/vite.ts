@@ -52,7 +52,8 @@ export async function setupVite(app: Express, server: Server) {
         path: '/hmr/',
         timeout: 120000,
         clientPort: 443,
-        host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'
+        host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co',
+        protocol: 'wss'
       },
     },
     appType: "custom",

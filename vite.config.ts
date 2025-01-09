@@ -22,7 +22,8 @@ export default defineConfig({
       clientPort: 443,
       path: '/hmr/',
       timeout: 120000,
-      host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'
+      host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co',
+      protocol: 'wss'
     },
     proxy: {
       '/api': {
