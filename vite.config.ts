@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -23,7 +22,8 @@ export default defineConfig({
       path: '/hmr/',
       timeout: 120000,
       host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co',
-      protocol: 'wss'
+      protocol: 'wss',
+      overlay: false
     },
     proxy: {
       '/api': {

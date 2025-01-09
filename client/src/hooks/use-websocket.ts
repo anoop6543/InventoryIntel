@@ -2,19 +2,23 @@ import { useEffect, useRef } from 'react';
 
 export function useWebSocket(onMessage: (data: any) => void) {
   const ws = useRef<WebSocket | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
-  useEffect(() => {
+  const connect = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     ws.current = new WebSocket(`${protocol}//${host}/ws`);
 
-    ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setTimeout(() => {
-        if (ws.current?.readyState === WebSocket.CLOSED) {
-          ws.current = new WebSocket(`${protocol}//${host}/ws`);
-        }
-      }, 5000);
+    ws.current.onopen = () => {
+      reconnectAttempts.current = 0;
+    };
+
+    ws.current.onerror = () => {
+      if (reconnectAttempts.current < maxReconnectAttempts) {
+        reconnectAttempts.current++;
+        setTimeout(connect, 1000 * Math.min(reconnectAttempts.current, 30));
+      }
     };
 
     ws.current.onmessage = (event) => {
