@@ -19,7 +19,13 @@ let wss: WebSocketServer | null = null;
 function createNewWSServer(server: Server) {
   if (wss) {
     try {
-      wss.clients.forEach(client => client.terminate());
+      wss.clients.forEach(client => {
+        try {
+          client.terminate();
+        } catch (error) {
+          log(`Error terminating client: ${error}`);
+        }
+      });
       wss.close();
     } catch (error) {
       log(`Error closing existing WebSocket server: ${error}`);
@@ -37,81 +43,94 @@ function createNewWSServer(server: Server) {
 
   const clients = new Map<WebSocket, ClientInfo>();
 
-  newWss.on("connection", async (ws) => {
+  newWss.on("connection", async (ws, req) => {
+    // Ignore Vite HMR connections
+    if (req.headers['sec-websocket-protocol']?.includes('vite-hmr')) {
+      return;
+    }
+
     log("New WebSocket connection");
 
-    ws.send(JSON.stringify({
-      type: 'CONNECTION_ACK',
-      payload: { message: 'Connected to inventory management system' }
-    }));
+    try {
+      ws.send(JSON.stringify({
+        type: 'CONNECTION_ACK',
+        payload: { message: 'Connected to inventory management system' }
+      }));
 
-    clients.set(ws, { role: 'user' });
+      clients.set(ws, { role: 'user' });
 
-    ws.on("message", async (rawMessage) => {
-      try {
-        const message: WSMessage = JSON.parse(rawMessage.toString());
+      ws.on("message", async (rawMessage) => {
+        try {
+          const message: WSMessage = JSON.parse(rawMessage.toString());
 
-        switch (message.type) {
-          case 'INVENTORY_UPDATE':
-            const update = message.payload;
-            if (!update?.id || typeof update.quantity !== 'number') {
-              ws.send(JSON.stringify({
-                type: 'ERROR',
-                payload: { message: 'Invalid update format' }
-              }));
-              return;
-            }
-
-            const [currentItem] = await db
-              .select()
-              .from(items)
-              .where(eq(items.id, update.id));
-
-            if (!currentItem) {
-              ws.send(JSON.stringify({
-                type: 'ERROR',
-                payload: { message: 'Item not found' }
-              }));
-              return;
-            }
-
-            // Broadcast update to all connected clients except sender
-            const updateMessage = JSON.stringify({
-              type: 'INVENTORY_UPDATE',
-              payload: {
-                id: currentItem.id,
-                name: currentItem.name,
-                quantity: update.quantity,
-                previousQuantity: currentItem.quantity,
-                timestamp: new Date().toISOString()
+          switch (message.type) {
+            case 'INVENTORY_UPDATE':
+              const update = message.payload;
+              if (!update?.id || typeof update.quantity !== 'number') {
+                ws.send(JSON.stringify({
+                  type: 'ERROR',
+                  payload: { message: 'Invalid update format' }
+                }));
+                return;
               }
-            });
 
-            newWss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN && client !== ws) {
-                client.send(updateMessage);
+              const [currentItem] = await db
+                .select()
+                .from(items)
+                .where(eq(items.id, update.id));
+
+              if (!currentItem) {
+                ws.send(JSON.stringify({
+                  type: 'ERROR',
+                  payload: { message: 'Item not found' }
+                }));
+                return;
               }
-            });
-            break;
+
+              // Broadcast update to all connected clients except sender
+              const updateMessage = JSON.stringify({
+                type: 'INVENTORY_UPDATE',
+                payload: {
+                  id: currentItem.id,
+                  name: currentItem.name,
+                  quantity: update.quantity,
+                  previousQuantity: currentItem.quantity,
+                  timestamp: new Date().toISOString()
+                }
+              });
+
+              newWss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN && client !== ws) {
+                  try {
+                    client.send(updateMessage);
+                  } catch (error) {
+                    log(`Error sending message to client: ${error}`);
+                  }
+                }
+              });
+              break;
+          }
+        } catch (error) {
+          log(`Error processing WebSocket message: ${error}`);
+          ws.send(JSON.stringify({
+            type: 'ERROR',
+            payload: { message: 'Invalid message format' }
+          }));
         }
-      } catch (error) {
-        log('Error processing WebSocket message: ' + error);
-        ws.send(JSON.stringify({
-          type: 'ERROR',
-          payload: { message: 'Invalid message format' }
-        }));
-      }
-    });
+      });
 
-    ws.on("close", () => {
-      clients.delete(ws);
-      log("WebSocket connection closed");
-    });
+      ws.on("close", () => {
+        clients.delete(ws);
+        log("WebSocket connection closed");
+      });
 
-    ws.on("error", () => {
-      clients.delete(ws);
-      log("WebSocket connection error");
-    });
+      ws.on("error", () => {
+        clients.delete(ws);
+        log("WebSocket connection error");
+      });
+    } catch (error) {
+      log(`Error in WebSocket connection handler: ${error}`);
+    }
   });
 
   return newWss;

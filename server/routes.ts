@@ -5,7 +5,6 @@ import { items, auditLogs, suppliers, purchaseOrders, purchaseOrderItems } from 
 import { eq, desc, sql } from "drizzle-orm";
 import { log } from "./vite";
 import { setupWebSocket } from "./websocket";
-import { automationService } from "./services/inventory-automation";
 
 export function registerRoutes(app: Express): Server {
   // Create HTTP server
@@ -100,11 +99,6 @@ export function registerRoutes(app: Express): Server {
       .where(eq(purchaseOrderItems.purchaseOrderId, orderId));
 
     res.json(orderItems);
-  });
-
-  // Start automation service
-  automationService.runAutomationCheck().catch(error => {
-    log(`Failed to run initial automation check: ${error}`);
   });
 
   return httpServer;

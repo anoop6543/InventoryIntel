@@ -10,9 +10,12 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 const app = express();
+
+// Basic middleware setup
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Configure logging
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -31,11 +34,9 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
       log(logLine);
     }
   });
@@ -47,14 +48,14 @@ let server: any = null;
 let wsServer: any = null;
 let isShuttingDown = false;
 
-async function cleanup() {
+async function cleanup(exit = false) {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
   try {
     log("Starting cleanup process...");
 
-    // Forcefully kill any existing processes on port 5000
+    // Cleanup existing port
     try {
       const { stdout } = await execAsync("lsof -t -i:5000");
       if (stdout) {
@@ -74,6 +75,7 @@ async function cleanup() {
       // Ignore error if no processes found
     }
 
+    // Cleanup WebSocket server
     if (wsServer) {
       log("Cleaning up WebSocket server...");
       try {
@@ -85,32 +87,45 @@ async function cleanup() {
       }
     }
 
+    // Cleanup HTTP server
     if (server) {
       log("Closing HTTP server...");
       await new Promise<void>((resolve) => {
-        server.close(() => {
-          log("Server closed successfully");
+        try {
+          server.close(() => {
+            log("Server closed successfully");
+            resolve();
+          });
+        } catch (error) {
+          log(`Error closing server: ${error}`);
           resolve();
-        });
-        // Force close after timeout
-        setTimeout(() => {
-          resolve();
-        }, 1000);
+        }
+        // Force resolve after timeout
+        setTimeout(resolve, 1000);
       });
       server = null;
     }
 
     isShuttingDown = false;
     log("Cleanup completed");
+
+    if (exit) {
+      process.exit(0);
+    }
   } catch (error) {
     log(`Error during cleanup: ${error}`);
     isShuttingDown = false;
+    if (exit) {
+      process.exit(1);
+    }
   }
 }
 
-process.on('SIGTERM', cleanup);
-process.on('SIGINT', cleanup);
+// Handle process termination
+process.on('SIGTERM', () => cleanup(true));
+process.on('SIGINT', () => cleanup(true));
 
+// Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   log(`Error encountered: ${err.message}`);
   const status = err.status || err.statusCode || 500;
@@ -118,43 +133,49 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   res.status(status).json({ message });
 });
 
-(async () => {
+async function startServer() {
   try {
-    // Ensure no existing server is running
+    // Ensure cleanup
     await cleanup();
+    log("Initial cleanup completed");
+
+    // Add delay after cleanup
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Test database connection
     await db.execute(sql`SELECT 1`);
-    log("Database connection established successfully");
+    log("Database connection established");
 
-    // Setup authentication
+    // Setup authentication after database is confirmed
     setupAuth(app);
     log("Authentication setup completed");
 
     // Register routes and create HTTP server
     server = registerRoutes(app);
-    log("Routes registered successfully");
+    log("Routes registered");
 
     // Setup Vite or static serving
     if (app.get("env") === "development") {
       await setupVite(app, server);
+      log("Vite setup completed");
     } else {
       serveStatic(app);
+      log("Static serving setup completed");
     }
 
     // Start server
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", async () => {
-      log(`Server starting on port ${PORT}...`);
+      log(`Server starting on port ${PORT}`);
 
       try {
+        // Setup WebSocket after server is listening
         const ws = await setupWebSocket(server);
         wsServer = ws;
         log(`Server and WebSocket setup complete on port ${PORT}`);
       } catch (error) {
         log(`WebSocket setup failed: ${error}`);
-        await cleanup();
-        process.exit(1);
+        await cleanup(true);
       }
     });
 
@@ -162,14 +183,15 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       log(`Server error: ${error.message}`);
       if (error.code === 'EADDRINUSE') {
         log(`Port ${PORT} is already in use. Attempting cleanup and retry...`);
-        await cleanup();
-        process.exit(1);
+        await cleanup(true);
       }
     });
 
   } catch (error) {
     log(`Fatal error during server initialization: ${error}`);
-    await cleanup();
-    process.exit(1);
+    await cleanup(true);
   }
-})();
+}
+
+// Start the server
+startServer();
