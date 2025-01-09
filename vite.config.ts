@@ -17,6 +17,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    strictPort: true,
+    hmr: {
+      clientPort: 443,
+      host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'
+    },
     hmr: {
       protocol: 'ws',
       host: '0.0.0.0',
