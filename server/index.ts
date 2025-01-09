@@ -165,7 +165,7 @@ async function startServer() {
 
     // Start server
     const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", async () => {
+    server.listen(PORT, "localhost", async () => {
       log(`Server starting on port ${PORT}`);
 
       try {

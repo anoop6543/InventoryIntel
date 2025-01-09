@@ -17,21 +17,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
-    hmr: {
-      clientPort: 443,
-      path: '/hmr/',
-      timeout: 120000,
-      host: process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co',
-      protocol: 'wss',
-      overlay: false
-    },
+    hmr: false,
     proxy: {
       '/api': {
-        target: 'http://0.0.0.0:5000',
-        changeOrigin: true
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
       },
       '/ws': {
-        target: 'ws://0.0.0.0:5000',
+        target: 'ws://localhost:5000',
         ws: true,
         secure: false
       }
